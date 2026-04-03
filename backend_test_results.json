@@ -1,0 +1,88 @@
+[
+  {
+    "test": "Root endpoint",
+    "success": false,
+    "details": "Connection error: HTTPSConnectionPool(host='ai-money-agent-4.preview.emergentagent.com', port=443): Read timed out. (read timeout=10)",
+    "response_data": null,
+    "timestamp": "2026-04-03T17:29:42.754762"
+  },
+  {
+    "test": "GET /api/jobs/available",
+    "success": true,
+    "details": "Found 4 valid jobs with GBP prices",
+    "response_data": [
+      "\u2713 Product Description: Eco-Friendly Water Bottle: \u00a315.0 (200 words)",
+      "\u2713 Social Media Campaign: Fitness App Launch: \u00a330.0 (500 words)",
+      "\u2713 Email Marketing: Summer Sale Announcement: \u00a320.0 (300 words)",
+      "\u2713 Article: Future of AI in Business: \u00a340.0 (800 words)"
+    ],
+    "timestamp": "2026-04-03T17:29:43.155674"
+  },
+  {
+    "test": "GET /api/jobs/{job_id}",
+    "success": true,
+    "details": "Job details: Product Description: Eco-Friendly Water Bottle - \u00a315.0",
+    "response_data": {
+      "_id": "69cff7fc6a6e424d7dcc29c2",
+      "title": "Product Description: Eco-Friendly Water Bottle",
+      "description": "Create a compelling 200-word product description for an eco-friendly water bottle",
+      "job_type": "product_description",
+      "word_count": 200,
+      "price_gbp": 15.0,
+      "status": "available",
+      "created_at": "2026-04-03T17:25:16.122000"
+    },
+    "timestamp": "2026-04-03T17:29:43.853231"
+  },
+  {
+    "test": "GET /api/stats",
+    "success": true,
+    "details": "Stats valid: Total: \u00a325.0, Completed: 1, Today: \u00a325.0, Week: \u00a325.0",
+    "response_data": {
+      "total_earnings_gbp": 25.0,
+      "jobs_completed": 1,
+      "jobs_available": 4,
+      "today_earnings": 25.0,
+      "this_week_earnings": 25.0
+    },
+    "timestamp": "2026-04-03T17:29:44.136346"
+  },
+  {
+    "test": "GET /api/work/history",
+    "success": true,
+    "details": "Found 1 completed works, total earnings: \u00a325.0",
+    "response_data": [
+      "\u2713 Blog Post: Benefits of Digital Marketing: \u00a325.0"
+    ],
+    "timestamp": "2026-04-03T17:29:44.535890"
+  },
+  {
+    "test": "POST /api/jobs/execute/{job_id}",
+    "success": false,
+    "details": "Status code: 500, Response: {\"detail\":\"Error executing job: Failed to generate chat completion: litellm.BadRequestError: OpenAIException - Budget has been exceeded! Current cost: 0.00827925, Max budget: 0.001\"}",
+    "response_data": null,
+    "timestamp": "2026-04-03T17:29:45.855587"
+  },
+  {
+    "test": "GET /api/stats",
+    "success": true,
+    "details": "Stats valid: Total: \u00a325.0, Completed: 1, Today: \u00a325.0, Week: \u00a325.0",
+    "response_data": {
+      "total_earnings_gbp": 25.0,
+      "jobs_completed": 1,
+      "jobs_available": 4,
+      "today_earnings": 25.0,
+      "this_week_earnings": 25.0
+    },
+    "timestamp": "2026-04-03T17:29:48.154913"
+  },
+  {
+    "test": "GET /api/work/history",
+    "success": true,
+    "details": "Found 1 completed works, total earnings: \u00a325.0",
+    "response_data": [
+      "\u2713 Blog Post: Benefits of Digital Marketing: \u00a325.0"
+    ],
+    "timestamp": "2026-04-03T17:29:48.554143"
+  }
+]
