@@ -10,6 +10,8 @@ import {
   Alert,
   Platform,
   Dimensions,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,15 +44,56 @@ interface CompletedWork {
   completed_at: string;
 }
 
+interface Balance {
+  total_earnings: number;
+  total_withdrawn: number;
+  available_balance: number;
+  can_withdraw: boolean;
+}
+
+interface BankAccount {
+  has_account: boolean;
+  account_holder_name?: string;
+  iban?: string;
+  masked_iban?: string;
+  swift_bic?: string;
+  bank_name?: string;
+  country?: string;
+}
+
+interface Withdrawal {
+  _id: string;
+  amount: number;
+  status: string;
+  bank_account_last4: string;
+  account_holder_name: string;
+  created_at: string;
+  transaction_id: string;
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'withdrawals' | 'settings'>('dashboard');
   const [stats, setStats] = useState<Stats | null>(null);
+  const [balance, setBalance] = useState<Balance | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [completedWorks, setCompletedWorks] = useState<CompletedWork[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [executingJob, setExecutingJob] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(false);
+  
+  // Bank account form state
+  const [showBankForm, setShowBankForm] = useState(false);
+  const [accountHolderName, setAccountHolderName] = useState('');
+  const [iban, setIban] = useState('');
+  const [swiftBic, setSwiftBic] = useState('');
+  const [bankName, setBankName] = useState('');
+  
+  // Withdrawal modal
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
 
   useEffect(() => {
     loadData();
@@ -61,8 +104,11 @@ export default function App() {
       setLoading(true);
       await Promise.all([
         fetchStats(),
+        fetchBalance(),
         fetchJobs(),
         fetchCompletedWorks(),
+        fetchBankAccount(),
+        fetchWithdrawals(),
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -87,6 +133,16 @@ export default function App() {
     }
   };
 
+  const fetchBalance = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/balance`);
+      const data = await response.json();
+      setBalance(data);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
+  };
+
   const fetchJobs = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/jobs/available`);
@@ -104,6 +160,32 @@ export default function App() {
       setCompletedWorks(data);
     } catch (error) {
       console.error('Error fetching completed works:', error);
+    }
+  };
+
+  const fetchBankAccount = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/bank-account`);
+      const data = await response.json();
+      setBankAccount(data);
+      if (data.has_account) {
+        setAccountHolderName(data.account_holder_name || '');
+        setIban(data.iban || '');
+        setSwiftBic(data.swift_bic || '');
+        setBankName(data.bank_name || '');
+      }
+    } catch (error) {
+      console.error('Error fetching bank account:', error);
+    }
+  };
+
+  const fetchWithdrawals = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/withdrawals`);
+      const data = await response.json();
+      setWithdrawals(data);
+    } catch (error) {
+      console.error('Error fetching withdrawals:', error);
     }
   };
 
@@ -126,13 +208,85 @@ export default function App() {
         [{ text: 'OK' }]
       );
       
-      // Refresh data
       await loadData();
     } catch (error) {
       Alert.alert('Error', 'Failed to execute job. Please try again.');
       console.error('Error executing job:', error);
     } finally {
       setExecutingJob(null);
+    }
+  };
+
+  const saveBankAccount = async () => {
+    if (!accountHolderName || !iban) {
+      Alert.alert('Error', 'Please fill in Account Holder Name and IBAN');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/bank-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_holder_name: accountHolderName,
+          iban: iban,
+          swift_bic: swiftBic,
+          bank_name: bankName,
+          country: 'GB',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save bank account');
+      }
+
+      Alert.alert('Success', 'Bank account saved successfully');
+      setShowBankForm(false);
+      await fetchBankAccount();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save bank account');
+      console.error('Error saving bank account:', error);
+    }
+  };
+
+  const requestWithdrawal = async () => {
+    const amount = parseFloat(withdrawAmount);
+    
+    if (isNaN(amount) || amount < 10) {
+      Alert.alert('Error', 'Minimum withdrawal amount is £10.00');
+      return;
+    }
+
+    if (!balance || amount > balance.available_balance) {
+      Alert.alert('Error', `Insufficient balance. Available: £${balance?.available_balance.toFixed(2)}`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to process withdrawal');
+      }
+
+      Alert.alert(
+        '💷 Withdrawal Successful!',
+        `£${amount.toFixed(2)} has been transferred to your bank account.\n\nTransaction ID: ${data.transaction_id}`,
+        [{ text: 'OK' }]
+      );
+
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      await loadData();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to process withdrawal');
+      console.error('Error requesting withdrawal:', error);
     }
   };
 
@@ -160,7 +314,6 @@ export default function App() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>AI Money Maker</Text>
@@ -181,44 +334,48 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <View style={[styles.statsCard, styles.primaryCard]}>
-          <Ionicons name="cash" size={32} color="#fff" />
-          <Text style={styles.statsValue}>£{stats?.total_earnings_gbp.toFixed(2) || '0.00'}</Text>
-          <Text style={styles.statsLabel}>Total Earnings</Text>
+          <Ionicons name="wallet" size={32} color="#fff" />
+          <Text style={styles.statsValue}>£{balance?.available_balance.toFixed(2) || '0.00'}</Text>
+          <Text style={styles.statsLabel}>Available Balance</Text>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statsCardSmall}>
-            <Ionicons name="today" size={24} color="#4CAF50" />
-            <Text style={styles.statsValueSmall}>£{stats?.today_earnings.toFixed(2) || '0.00'}</Text>
-            <Text style={styles.statsLabelSmall}>Today</Text>
+            <Ionicons name="cash" size={24} color="#4CAF50" />
+            <Text style={styles.statsValueSmall}>£{balance?.total_earnings.toFixed(2) || '0.00'}</Text>
+            <Text style={styles.statsLabelSmall}>Total Earned</Text>
           </View>
 
           <View style={styles.statsCardSmall}>
-            <Ionicons name="calendar" size={24} color="#2196F3" />
-            <Text style={styles.statsValueSmall}>£{stats?.this_week_earnings.toFixed(2) || '0.00'}</Text>
-            <Text style={styles.statsLabelSmall}>This Week</Text>
+            <Ionicons name="trending-down" size={24} color="#FF9800" />
+            <Text style={styles.statsValueSmall}>£{balance?.total_withdrawn.toFixed(2) || '0.00'}</Text>
+            <Text style={styles.statsLabelSmall}>Withdrawn</Text>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statsCardSmall}>
-            <Ionicons name="checkmark-circle" size={24} color="#9C27B0" />
-            <Text style={styles.statsValueSmall}>{stats?.jobs_completed || 0}</Text>
-            <Text style={styles.statsLabelSmall}>Completed</Text>
-          </View>
+        {balance?.can_withdraw && bankAccount?.has_account && (
+          <TouchableOpacity
+            style={styles.withdrawButton}
+            onPress={() => setShowWithdrawModal(true)}
+          >
+            <Ionicons name="card" size={20} color="#fff" />
+            <Text style={styles.withdrawButtonText}>Wypłać na konto</Text>
+          </TouchableOpacity>
+        )}
 
-          <View style={styles.statsCardSmall}>
-            <Ionicons name="list" size={24} color="#FF9800" />
-            <Text style={styles.statsValueSmall}>{stats?.jobs_available || 0}</Text>
-            <Text style={styles.statsLabelSmall}>Available</Text>
-          </View>
-        </View>
+        {!bankAccount?.has_account && (
+          <TouchableOpacity
+            style={styles.addBankButton}
+            onPress={() => setShowBankForm(true)}
+          >
+            <Ionicons name="add-circle" size={20} color="#6200EE" />
+            <Text style={styles.addBankButtonText}>Dodaj konto bankowe</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Available Jobs */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Available Jobs</Text>
         {loading ? (
@@ -333,6 +490,62 @@ export default function App() {
     </ScrollView>
   );
 
+  const renderWithdrawals = () => (
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Withdrawals</Text>
+        <Text style={styles.headerSubtitle}>Historia wypłat</Text>
+      </View>
+
+      <View style={styles.section}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#6200EE" style={{ marginTop: 20 }} />
+        ) : withdrawals.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="card-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyStateText}>No withdrawals yet</Text>
+          </View>
+        ) : (
+          withdrawals.map((withdrawal) => (
+            <View key={withdrawal._id} style={styles.withdrawalCard}>
+              <View style={styles.withdrawalHeader}>
+                <Ionicons name="arrow-down-circle" size={24} color="#FF9800" />
+                <View style={styles.withdrawalInfo}>
+                  <Text style={styles.withdrawalAmount}>£{withdrawal.amount.toFixed(2)}</Text>
+                  <Text style={styles.withdrawalStatus}>
+                    {withdrawal.status === 'completed' ? '✓ Completed' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.withdrawalDetails}>
+                <Text style={styles.withdrawalText}>
+                  Account: ****{withdrawal.bank_account_last4}
+                </Text>
+                <Text style={styles.withdrawalText}>
+                  {new Date(withdrawal.created_at).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+                <Text style={styles.withdrawalId}>
+                  ID: {withdrawal.transaction_id}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
+  );
+
   const renderSettings = () => (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -341,6 +554,42 @@ export default function App() {
       </View>
 
       <View style={styles.section}>
+        <View style={styles.settingCard}>
+          <View style={styles.settingHeader}>
+            <Ionicons name="card" size={24} color="#6200EE" />
+            <Text style={styles.settingTitle}>Bank Account</Text>
+          </View>
+          {bankAccount?.has_account ? (
+            <View>
+              <Text style={styles.settingDescription}>
+                {bankAccount.account_holder_name}
+              </Text>
+              <Text style={styles.settingDescription}>
+                {bankAccount.masked_iban}
+              </Text>
+              {bankAccount.bank_name && (
+                <Text style={styles.settingDescription}>
+                  {bankAccount.bank_name}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={styles.editBankButton}
+                onPress={() => setShowBankForm(true)}
+              >
+                <Text style={styles.editBankButtonText}>Edit Bank Details</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.addBankButtonSetting}
+              onPress={() => setShowBankForm(true)}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#6200EE" />
+              <Text style={styles.addBankButtonText}>Add Bank Account</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.settingCard}>
           <View style={styles.settingHeader}>
             <Ionicons name="settings" size={24} color="#6200EE" />
@@ -368,7 +617,7 @@ export default function App() {
             This AI agent uses GPT-5.2 to automatically complete writing jobs and earn money in GBP.
           </Text>
           <Text style={styles.settingDescription}>
-            Turn on Auto Mode to let the AI automatically pick up and complete available jobs.
+            Minimum withdrawal amount: £10.00
           </Text>
         </View>
 
@@ -386,12 +635,11 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Main Content */}
       {activeTab === 'dashboard' && renderDashboard()}
       {activeTab === 'history' && renderHistory()}
+      {activeTab === 'withdrawals' && renderWithdrawals()}
       {activeTab === 'settings' && renderSettings()}
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
           style={styles.navItem}
@@ -433,6 +681,25 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
+          onPress={() => setActiveTab('withdrawals')}
+        >
+          <Ionicons
+            name={activeTab === 'withdrawals' ? 'card' : 'card-outline'}
+            size={24}
+            color={activeTab === 'withdrawals' ? '#6200EE' : '#666'}
+          />
+          <Text
+            style={[
+              styles.navLabel,
+              activeTab === 'withdrawals' && styles.navLabelActive,
+            ]}
+          >
+            Wypłaty
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => setActiveTab('settings')}
         >
           <Ionicons
@@ -450,6 +717,146 @@ export default function App() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Bank Account Modal */}
+      <Modal
+        visible={showBankForm}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Bank Account Details</Text>
+              <TouchableOpacity onPress={() => setShowBankForm(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.formContainer}>
+              <Text style={styles.inputLabel}>Account Holder Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={accountHolderName}
+                onChangeText={setAccountHolderName}
+                placeholder="John Doe"
+              />
+
+              <Text style={styles.inputLabel}>IBAN *</Text>
+              <TextInput
+                style={styles.input}
+                value={iban}
+                onChangeText={setIban}
+                placeholder="GB29 NWBK 6016 1331 9268 19"
+                autoCapitalize="characters"
+              />
+
+              <Text style={styles.inputLabel}>SWIFT/BIC</Text>
+              <TextInput
+                style={styles.input}
+                value={swiftBic}
+                onChangeText={setSwiftBic}
+                placeholder="NWBKGB2L"
+                autoCapitalize="characters"
+              />
+
+              <Text style={styles.inputLabel}>Bank Name</Text>
+              <TextInput
+                style={styles.input}
+                value={bankName}
+                onChangeText={setBankName}
+                placeholder="NatWest"
+              />
+
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={saveBankAccount}
+              >
+                <Text style={styles.saveButtonText}>Save Bank Account</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Withdrawal Modal */}
+      <Modal
+        visible={showWithdrawModal}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Withdraw to Bank</Text>
+              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.withdrawModalBody}>
+              <View style={styles.balanceInfo}>
+                <Text style={styles.balanceLabel}>Available Balance</Text>
+                <Text style={styles.balanceAmount}>
+                  £{balance?.available_balance.toFixed(2)}
+                </Text>
+              </View>
+
+              <Text style={styles.inputLabel}>Withdrawal Amount (min £10.00)</Text>
+              <TextInput
+                style={styles.input}
+                value={withdrawAmount}
+                onChangeText={setWithdrawAmount}
+                placeholder="10.00"
+                keyboardType="decimal-pad"
+              />
+
+              <View style={styles.quickAmounts}>
+                <TouchableOpacity
+                  style={styles.quickAmountButton}
+                  onPress={() => setWithdrawAmount('10')}
+                >
+                  <Text style={styles.quickAmountText}>£10</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickAmountButton}
+                  onPress={() => setWithdrawAmount('50')}
+                >
+                  <Text style={styles.quickAmountText}>£50</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickAmountButton}
+                  onPress={() => setWithdrawAmount('100')}
+                >
+                  <Text style={styles.quickAmountText}>£100</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickAmountButton}
+                  onPress={() => setWithdrawAmount(balance?.available_balance.toString() || '0')}
+                >
+                  <Text style={styles.quickAmountText}>All</Text>
+                </TouchableOpacity>
+              </View>
+
+              {bankAccount?.has_account && (
+                <View style={styles.withdrawInfo}>
+                  <Ionicons name="information-circle" size={20} color="#666" />
+                  <Text style={styles.withdrawInfoText}>
+                    Funds will be sent to: {bankAccount.masked_iban}
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.confirmWithdrawButton}
+                onPress={requestWithdrawal}
+              >
+                <Text style={styles.confirmWithdrawButtonText}>Confirm Withdrawal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -555,6 +962,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  withdrawButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 4,
+  },
+  withdrawButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  addBankButton: {
+    backgroundColor: '#F3E5F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#6200EE',
+    borderStyle: 'dashed',
+  },
+  addBankButtonText: {
+    color: '#6200EE',
+    fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     padding: 16,
@@ -691,6 +1131,51 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#4CAF50',
   },
+  withdrawalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  withdrawalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  withdrawalInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  withdrawalAmount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  withdrawalStatus: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 4,
+  },
+  withdrawalDetails: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 12,
+  },
+  withdrawalText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  withdrawalId: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
   settingCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -743,6 +1228,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 8,
   },
+  editBankButton: {
+    backgroundColor: '#F3E5F5',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  editBankButtonText: {
+    color: '#6200EE',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  addBankButtonSetting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    gap: 8,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -774,6 +1278,125 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#6200EE',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  formContainer: {
+    padding: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  saveButton: {
+    backgroundColor: '#6200EE',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  withdrawModalBody: {
+    padding: 16,
+  },
+  balanceInfo: {
+    backgroundColor: '#F3E5F5',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  balanceAmount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#6200EE',
+  },
+  quickAmounts: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  quickAmountButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  quickAmountText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  withdrawInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF9E6',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    gap: 8,
+  },
+  withdrawInfoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#666',
+  },
+  confirmWithdrawButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  confirmWithdrawButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

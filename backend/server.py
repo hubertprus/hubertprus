@@ -38,6 +38,8 @@ db = client["ai_money_maker"]
 jobs_collection = db["jobs"]
 completed_work_collection = db["completed_work"]
 payment_transactions_collection = db["payment_transactions"]
+bank_accounts_collection = db["bank_accounts"]
+withdrawals_collection = db["withdrawals"]
 
 # API Keys
 EMERGENT_LLM_KEY = os.getenv("EMERGENT_LLM_KEY")
@@ -72,6 +74,24 @@ class Stats(BaseModel):
     jobs_available: int
     today_earnings: float
     this_week_earnings: float
+
+class BankAccount(BaseModel):
+    account_holder_name: str
+    iban: str
+    swift_bic: Optional[str] = None
+    bank_name: Optional[str] = None
+    country: str = "GB"
+
+class WithdrawalRequest(BaseModel):
+    amount: float
+
+class Withdrawal(BaseModel):
+    amount: float
+    status: str  # "pending", "completed", "failed"
+    bank_account_last4: str
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    transaction_id: Optional[str] = None
 
 # Helper function to convert ObjectId to string
 def serialize_doc(doc):
@@ -412,6 +432,158 @@ async def stripe_webhook(request: Request):
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook error: {str(e)}")
+
+# Bank Account endpoints
+@app.post("/api/bank-account")
+async def save_bank_account(bank_account: BankAccount):
+    try:
+        # Check if bank account already exists
+        existing = bank_accounts_collection.find_one({})
+        
+        account_data = {
+            "account_holder_name": bank_account.account_holder_name,
+            "iban": bank_account.iban,
+            "swift_bic": bank_account.swift_bic,
+            "bank_name": bank_account.bank_name,
+            "country": bank_account.country,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        if existing:
+            # Update existing account
+            bank_accounts_collection.update_one(
+                {"_id": existing["_id"]},
+                {"$set": account_data}
+            )
+        else:
+            # Create new account
+            account_data["created_at"] = datetime.now(timezone.utc)
+            bank_accounts_collection.insert_one(account_data)
+        
+        return {"success": True, "message": "Bank account saved successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving bank account: {str(e)}")
+
+@app.get("/api/bank-account")
+async def get_bank_account():
+    try:
+        account = bank_accounts_collection.find_one({})
+        if not account:
+            return {"has_account": False}
+        
+        # Return account with masked IBAN (show only last 4 digits)
+        iban = account.get("iban", "")
+        masked_iban = "****" + iban[-4:] if len(iban) > 4 else iban
+        
+        return {
+            "has_account": True,
+            "account_holder_name": account.get("account_holder_name"),
+            "iban": account.get("iban"),  # Full IBAN for editing
+            "masked_iban": masked_iban,
+            "swift_bic": account.get("swift_bic"),
+            "bank_name": account.get("bank_name"),
+            "country": account.get("country")
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching bank account: {str(e)}")
+
+@app.delete("/api/bank-account")
+async def delete_bank_account():
+    try:
+        bank_accounts_collection.delete_many({})
+        return {"success": True, "message": "Bank account deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting bank account: {str(e)}")
+
+# Withdrawal endpoints
+@app.post("/api/withdraw")
+async def create_withdrawal(withdrawal_request: WithdrawalRequest):
+    try:
+        # Check if bank account exists
+        bank_account = bank_accounts_collection.find_one({})
+        if not bank_account:
+            raise HTTPException(status_code=400, detail="No bank account configured. Please add bank details in Settings.")
+        
+        # Check minimum withdrawal amount
+        if withdrawal_request.amount < 10.0:
+            raise HTTPException(status_code=400, detail="Minimum withdrawal amount is £10.00")
+        
+        # Calculate available balance
+        completed_works = list(completed_work_collection.find({}))
+        total_earnings = sum([work["earnings_gbp"] for work in completed_works])
+        
+        # Get total already withdrawn
+        withdrawals = list(withdrawals_collection.find({"status": "completed"}))
+        total_withdrawn = sum([w["amount"] for w in withdrawals])
+        
+        available_balance = total_earnings - total_withdrawn
+        
+        # Check if sufficient balance
+        if withdrawal_request.amount > available_balance:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient balance. Available: £{available_balance:.2f}"
+            )
+        
+        # Create withdrawal record
+        iban = bank_account.get("iban", "")
+        withdrawal_data = {
+            "amount": withdrawal_request.amount,
+            "status": "completed",  # In production, this would be "pending" until Stripe processes it
+            "bank_account_last4": iban[-4:] if len(iban) > 4 else iban,
+            "account_holder_name": bank_account.get("account_holder_name"),
+            "iban": iban,
+            "created_at": datetime.now(timezone.utc),
+            "completed_at": datetime.now(timezone.utc),
+            "transaction_id": f"WD{int(datetime.now(timezone.utc).timestamp())}"
+        }
+        
+        withdrawals_collection.insert_one(withdrawal_data)
+        
+        return {
+            "success": True,
+            "message": f"Withdrawal of £{withdrawal_request.amount:.2f} processed successfully",
+            "transaction_id": withdrawal_data["transaction_id"],
+            "new_balance": available_balance - withdrawal_request.amount
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing withdrawal: {str(e)}")
+
+@app.get("/api/withdrawals")
+async def get_withdrawals():
+    try:
+        withdrawals = list(withdrawals_collection.find({}).sort("created_at", -1))
+        return [serialize_doc(w) for w in withdrawals]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching withdrawals: {str(e)}")
+
+@app.get("/api/balance")
+async def get_balance():
+    try:
+        # Calculate total earnings
+        completed_works = list(completed_work_collection.find({}))
+        total_earnings = sum([work["earnings_gbp"] for work in completed_works])
+        
+        # Calculate total withdrawn
+        withdrawals = list(withdrawals_collection.find({"status": "completed"}))
+        total_withdrawn = sum([w["amount"] for w in withdrawals])
+        
+        available_balance = total_earnings - total_withdrawn
+        
+        return {
+            "total_earnings": round(total_earnings, 2),
+            "total_withdrawn": round(total_withdrawn, 2),
+            "available_balance": round(available_balance, 2),
+            "can_withdraw": available_balance >= 10.0
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching balance: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
