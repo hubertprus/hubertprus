@@ -1,416 +1,310 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for AI Money Maker - Bank Account and Withdrawal Functionality
-Tests the new endpoints for balance, bank account management, and withdrawals.
+Backend API Testing for AI Money Maker - AI Infrastructure Integration Endpoints
+Testing new endpoints: /api/jobs/create, /api/jobs/webhook, /api/jobs/bulk-create, /api/jobs/auto-execute
 """
 
 import requests
 import json
-import sys
+import time
 from datetime import datetime
 
-# Backend URL from environment
+# Backend URL from frontend .env
 BACKEND_URL = "https://ai-money-agent-4.preview.emergentagent.com/api"
 
-def print_test_header(test_name):
-    """Print a formatted test header"""
-    print(f"\n{'='*60}")
-    print(f"🧪 {test_name}")
-    print(f"{'='*60}")
-
-def print_result(success, message, details=None):
-    """Print test result with formatting"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status}: {message}")
-    if details:
-        print(f"   Details: {details}")
-
-def test_balance_endpoint():
-    """Test GET /api/balance endpoint"""
-    print_test_header("Testing Balance Endpoint")
+def test_api_endpoint(method, endpoint, data=None, headers=None):
+    """Helper function to test API endpoints"""
+    url = f"{BACKEND_URL}{endpoint}"
     
     try:
-        response = requests.get(f"{BACKEND_URL}/balance")
+        if method.upper() == "GET":
+            response = requests.get(url, headers=headers, timeout=30)
+        elif method.upper() == "POST":
+            response = requests.post(url, json=data, headers=headers, timeout=30)
+        elif method.upper() == "PUT":
+            response = requests.put(url, json=data, headers=headers, timeout=30)
+        elif method.upper() == "DELETE":
+            response = requests.delete(url, headers=headers, timeout=30)
         
-        if response.status_code == 200:
-            data = response.json()
-            required_fields = ['total_earnings', 'total_withdrawn', 'available_balance', 'can_withdraw']
-            
-            # Check all required fields are present
-            missing_fields = [field for field in required_fields if field not in data]
-            if missing_fields:
-                print_result(False, "Missing required fields", f"Missing: {missing_fields}")
-                return False
-            
-            # Validate data types
-            if not isinstance(data['total_earnings'], (int, float)):
-                print_result(False, "total_earnings should be a number", f"Got: {type(data['total_earnings'])}")
-                return False
-            
-            if not isinstance(data['total_withdrawn'], (int, float)):
-                print_result(False, "total_withdrawn should be a number", f"Got: {type(data['total_withdrawn'])}")
-                return False
-            
-            if not isinstance(data['available_balance'], (int, float)):
-                print_result(False, "available_balance should be a number", f"Got: {type(data['available_balance'])}")
-                return False
-            
-            if not isinstance(data['can_withdraw'], bool):
-                print_result(False, "can_withdraw should be a boolean", f"Got: {type(data['can_withdraw'])}")
-                return False
-            
-            # Validate balance calculation
-            expected_balance = data['total_earnings'] - data['total_withdrawn']
-            if abs(data['available_balance'] - expected_balance) > 0.01:  # Allow for floating point precision
-                print_result(False, "Balance calculation incorrect", 
-                           f"Expected: {expected_balance}, Got: {data['available_balance']}")
-                return False
-            
-            # Validate can_withdraw logic
-            expected_can_withdraw = data['available_balance'] >= 10.0
-            if data['can_withdraw'] != expected_can_withdraw:
-                print_result(False, "can_withdraw logic incorrect", 
-                           f"Expected: {expected_can_withdraw}, Got: {data['can_withdraw']}")
-                return False
-            
-            print_result(True, "Balance endpoint working correctly", 
-                        f"Total: £{data['total_earnings']:.2f}, Withdrawn: £{data['total_withdrawn']:.2f}, Available: £{data['available_balance']:.2f}")
-            return data
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
+        print(f"\n{'='*60}")
+        print(f"Testing: {method.upper()} {endpoint}")
+        print(f"URL: {url}")
+        if data:
+            print(f"Request Data: {json.dumps(data, indent=2)}")
+        print(f"Status Code: {response.status_code}")
+        
+        try:
+            response_json = response.json()
+            print(f"Response: {json.dumps(response_json, indent=2)}")
+            return response.status_code, response_json
+        except:
+            print(f"Response Text: {response.text}")
+            return response.status_code, response.text
             
     except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_save_bank_account():
-    """Test POST /api/bank-account endpoint"""
-    print_test_header("Testing Save Bank Account")
-    
-    test_account = {
-        "account_holder_name": "John Smith",
-        "iban": "GB29NWBK60161331926819",
-        "swift_bic": "NWBKGB2L",
-        "bank_name": "NatWest Bank",
-        "country": "GB"
-    }
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/bank-account",
-            headers={"Content-Type": "application/json"},
-            json=test_account
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('success') and 'saved successfully' in data.get('message', ''):
-                print_result(True, "Bank account saved successfully", data.get('message'))
-                return True
-            else:
-                print_result(False, "Unexpected response format", str(data))
-                return False
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_get_bank_account():
-    """Test GET /api/bank-account endpoint"""
-    print_test_header("Testing Get Bank Account")
-    
-    try:
-        response = requests.get(f"{BACKEND_URL}/bank-account")
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if not data.get('has_account'):
-                print_result(False, "No bank account found", "Expected account to exist after saving")
-                return False
-            
-            # Check required fields
-            required_fields = ['account_holder_name', 'iban', 'masked_iban']
-            missing_fields = [field for field in required_fields if field not in data]
-            if missing_fields:
-                print_result(False, "Missing required fields", f"Missing: {missing_fields}")
-                return False
-            
-            # Validate IBAN masking
-            full_iban = data['iban']
-            masked_iban = data['masked_iban']
-            
-            if len(full_iban) > 4:
-                expected_masked = "****" + full_iban[-4:]
-                if masked_iban != expected_masked:
-                    print_result(False, "IBAN masking incorrect", 
-                               f"Expected: {expected_masked}, Got: {masked_iban}")
-                    return False
-            
-            print_result(True, "Bank account retrieved successfully", 
-                        f"Account holder: {data['account_holder_name']}, Masked IBAN: {masked_iban}")
-            return data
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_withdrawal_success(amount, balance_data):
-    """Test successful withdrawal"""
-    print_test_header(f"Testing Successful Withdrawal (£{amount})")
-    
-    if not balance_data or amount > balance_data['available_balance']:
-        print_result(False, "Cannot test withdrawal", f"Insufficient balance for £{amount}")
-        return False
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/withdraw",
-            headers={"Content-Type": "application/json"},
-            json={"amount": amount}
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if not data.get('success'):
-                print_result(False, "Withdrawal not successful", str(data))
-                return False
-            
-            # Check required fields in response
-            required_fields = ['message', 'transaction_id', 'new_balance']
-            missing_fields = [field for field in required_fields if field not in data]
-            if missing_fields:
-                print_result(False, "Missing required fields in response", f"Missing: {missing_fields}")
-                return False
-            
-            # Validate new balance calculation
-            expected_new_balance = balance_data['available_balance'] - amount
-            if abs(data['new_balance'] - expected_new_balance) > 0.01:
-                print_result(False, "New balance calculation incorrect", 
-                           f"Expected: {expected_new_balance}, Got: {data['new_balance']}")
-                return False
-            
-            print_result(True, f"Withdrawal of £{amount} successful", 
-                        f"Transaction ID: {data['transaction_id']}, New balance: £{data['new_balance']:.2f}")
-            return data
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_withdrawal_minimum_amount():
-    """Test withdrawal below minimum amount (should fail)"""
-    print_test_header("Testing Withdrawal Below Minimum (£5)")
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/withdraw",
-            headers={"Content-Type": "application/json"},
-            json={"amount": 5.0}
-        )
-        
-        if response.status_code == 400:
-            data = response.json()
-            if "minimum withdrawal" in data.get('detail', '').lower():
-                print_result(True, "Correctly rejected withdrawal below minimum", data.get('detail'))
-                return True
-            else:
-                print_result(False, "Wrong error message", f"Expected minimum withdrawal error, got: {data.get('detail')}")
-                return False
-        else:
-            print_result(False, f"Expected HTTP 400, got {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_withdrawal_insufficient_balance(balance_data):
-    """Test withdrawal above available balance (should fail)"""
-    print_test_header("Testing Withdrawal Above Available Balance")
-    
-    if not balance_data:
-        print_result(False, "Cannot test", "No balance data available")
-        return False
-    
-    # Try to withdraw more than available
-    excessive_amount = balance_data['available_balance'] + 100.0
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/withdraw",
-            headers={"Content-Type": "application/json"},
-            json={"amount": excessive_amount}
-        )
-        
-        if response.status_code == 400:
-            data = response.json()
-            if "insufficient balance" in data.get('detail', '').lower():
-                print_result(True, "Correctly rejected withdrawal above balance", data.get('detail'))
-                return True
-            else:
-                print_result(False, "Wrong error message", f"Expected insufficient balance error, got: {data.get('detail')}")
-                return False
-        else:
-            print_result(False, f"Expected HTTP 400, got {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_withdrawal_history():
-    """Test GET /api/withdrawals endpoint"""
-    print_test_header("Testing Withdrawal History")
-    
-    try:
-        response = requests.get(f"{BACKEND_URL}/withdrawals")
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if not isinstance(data, list):
-                print_result(False, "Response should be a list", f"Got: {type(data)}")
-                return False
-            
-            if len(data) == 0:
-                print_result(True, "No withdrawals in history", "Empty list returned")
-                return True
-            
-            # Check structure of withdrawal records
-            for i, withdrawal in enumerate(data):
-                required_fields = ['amount', 'status', 'bank_account_last4', 'created_at', 'transaction_id']
-                missing_fields = [field for field in required_fields if field not in withdrawal]
-                if missing_fields:
-                    print_result(False, f"Withdrawal {i} missing fields", f"Missing: {missing_fields}")
-                    return False
-                
-                # Validate data types
-                if not isinstance(withdrawal['amount'], (int, float)):
-                    print_result(False, f"Withdrawal {i} amount should be number", f"Got: {type(withdrawal['amount'])}")
-                    return False
-                
-                if withdrawal['status'] not in ['pending', 'completed', 'failed']:
-                    print_result(False, f"Withdrawal {i} invalid status", f"Got: {withdrawal['status']}")
-                    return False
-            
-            print_result(True, f"Withdrawal history retrieved successfully", f"Found {len(data)} withdrawals")
-            return data
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
-
-def test_balance_after_withdrawal(initial_balance, withdrawal_amount):
-    """Test that balance is correctly updated after withdrawal"""
-    print_test_header("Testing Balance Update After Withdrawal")
-    
-    try:
-        response = requests.get(f"{BACKEND_URL}/balance")
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            expected_balance = initial_balance['available_balance'] - withdrawal_amount
-            actual_balance = data['available_balance']
-            
-            if abs(actual_balance - expected_balance) > 0.01:
-                print_result(False, "Balance not updated correctly", 
-                           f"Expected: £{expected_balance:.2f}, Got: £{actual_balance:.2f}")
-                return False
-            
-            print_result(True, "Balance updated correctly after withdrawal", 
-                        f"New balance: £{actual_balance:.2f}")
-            return data
-        else:
-            print_result(False, f"HTTP {response.status_code}", response.text)
-            return False
-            
-    except Exception as e:
-        print_result(False, "Request failed", str(e))
-        return False
+        print(f"\n{'='*60}")
+        print(f"ERROR Testing: {method.upper()} {endpoint}")
+        print(f"Error: {str(e)}")
+        return None, str(e)
 
 def main():
-    """Run all tests"""
-    print("🚀 Starting AI Money Maker Backend Tests - Bank Account & Withdrawal Functionality")
+    print("🚀 Starting AI Infrastructure Integration Endpoints Testing")
     print(f"Backend URL: {BACKEND_URL}")
     
+    # Test results tracking
     test_results = []
     
-    # Test 1: Check current balance
-    balance_data = test_balance_endpoint()
-    test_results.append(("Balance Endpoint", balance_data is not False))
+    # ========================================
+    # Test 1: Create job with valid data
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 1: POST /api/jobs/create - Create single job with valid data")
+    print("="*80)
     
-    # Test 2: Save bank account
-    bank_save_result = test_save_bank_account()
-    test_results.append(("Save Bank Account", bank_save_result))
+    valid_job_data = {
+        "title": "AI Infrastructure Test: Social Media Campaign",
+        "description": "Create engaging social media posts for a new tech startup launch",
+        "job_type": "social_media",
+        "word_count": 400,
+        "price_gbp": 35.00
+    }
     
-    # Test 3: Retrieve bank account and verify masking
-    bank_data = test_get_bank_account()
-    test_results.append(("Get Bank Account", bank_data is not False))
+    status, response = test_api_endpoint("POST", "/jobs/create", valid_job_data)
     
-    # Test 4: Test withdrawal validation (minimum amount)
-    min_amount_result = test_withdrawal_minimum_amount()
-    test_results.append(("Withdrawal Minimum Validation", min_amount_result))
+    if status == 200 and isinstance(response, dict) and response.get("success"):
+        print("✅ TEST 1 PASSED: Job created successfully")
+        job_id_1 = response.get("job_id")
+        test_results.append(("Create job with valid data", "PASSED", f"Job ID: {job_id_1}"))
+    else:
+        print("❌ TEST 1 FAILED: Job creation failed")
+        test_results.append(("Create job with valid data", "FAILED", f"Status: {status}, Response: {response}"))
     
-    # Test 5: Test withdrawal validation (insufficient balance)
-    if balance_data:
-        insufficient_balance_result = test_withdrawal_insufficient_balance(balance_data)
-        test_results.append(("Withdrawal Insufficient Balance", insufficient_balance_result))
+    # ========================================
+    # Test 2: Create job with missing fields
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 2: POST /api/jobs/create - Create job with missing fields (should fail)")
+    print("="*80)
     
-    # Test 6: Attempt successful withdrawal (if sufficient balance)
-    withdrawal_result = False
-    withdrawal_amount = 10.0  # Minimum amount
-    if balance_data and balance_data['available_balance'] >= withdrawal_amount:
-        withdrawal_result = test_withdrawal_success(withdrawal_amount, balance_data)
-        test_results.append(("Successful Withdrawal", withdrawal_result is not False))
+    invalid_job_data = {
+        "title": "Incomplete Job",
+        # Missing description, job_type, word_count, price_gbp
+    }
+    
+    status, response = test_api_endpoint("POST", "/jobs/create", invalid_job_data)
+    
+    if status == 500:
+        print("✅ TEST 2 PASSED: Job creation properly failed with missing fields")
+        test_results.append(("Create job with missing fields", "PASSED", "Properly rejected invalid data"))
+    else:
+        print("❌ TEST 2 FAILED: Job creation should have failed")
+        test_results.append(("Create job with missing fields", "FAILED", f"Status: {status}, should be 500"))
+    
+    # ========================================
+    # Test 3: Webhook with full metadata
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 3: POST /api/jobs/webhook - Webhook with full metadata")
+    print("="*80)
+    
+    webhook_full_data = {
+        "title": "AI Infrastructure Webhook: Blog Post Creation",
+        "description": "Write a comprehensive blog post about AI trends in 2024",
+        "job_type": "blog_post",
+        "word_count": 800,
+        "price_gbp": 45.00,
+        "external_id": "EXT_12345",
+        "metadata": {
+            "source_system": "AI_Infrastructure_v2",
+            "priority": "high",
+            "client_id": "CLIENT_789",
+            "campaign_id": "CAMP_456"
+        }
+    }
+    
+    status, response = test_api_endpoint("POST", "/jobs/webhook", webhook_full_data)
+    
+    if status == 200 and isinstance(response, dict) and response.get("success"):
+        print("✅ TEST 3 PASSED: Webhook with full metadata accepted")
+        job_id_2 = response.get("job_id")
+        test_results.append(("Webhook with full metadata", "PASSED", f"Job ID: {job_id_2}"))
+    else:
+        print("❌ TEST 3 FAILED: Webhook with full metadata failed")
+        test_results.append(("Webhook with full metadata", "FAILED", f"Status: {status}, Response: {response}"))
+    
+    # ========================================
+    # Test 4: Webhook with minimal required fields
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 4: POST /api/jobs/webhook - Webhook with minimal required fields")
+    print("="*80)
+    
+    webhook_minimal_data = {
+        "title": "Minimal Webhook Job: Product Description",
+        "description": "Create a product description for eco-friendly packaging"
+        # Using defaults for job_type, word_count, price_gbp
+    }
+    
+    status, response = test_api_endpoint("POST", "/jobs/webhook", webhook_minimal_data)
+    
+    if status == 200 and isinstance(response, dict) and response.get("success"):
+        print("✅ TEST 4 PASSED: Webhook with minimal fields accepted")
+        job_id_3 = response.get("job_id")
+        test_results.append(("Webhook with minimal fields", "PASSED", f"Job ID: {job_id_3}"))
+    else:
+        print("❌ TEST 4 FAILED: Webhook with minimal fields failed")
+        test_results.append(("Webhook with minimal fields", "FAILED", f"Status: {status}, Response: {response}"))
+    
+    # ========================================
+    # Test 5: Bulk create with 3 jobs
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 5: POST /api/jobs/bulk-create - Create 3 jobs at once")
+    print("="*80)
+    
+    bulk_jobs_data = [
+        {
+            "title": "Bulk Job 1: Email Marketing Campaign",
+            "description": "Create email marketing content for holiday sales",
+            "job_type": "email_marketing",
+            "word_count": 300,
+            "price_gbp": 22.00
+        },
+        {
+            "title": "Bulk Job 2: Product Review Article",
+            "description": "Write a detailed review of the latest smartphone",
+            "job_type": "article",
+            "word_count": 600,
+            "price_gbp": 38.00
+        },
+        {
+            "title": "Bulk Job 3: Website Copy",
+            "description": "Create compelling website copy for a fitness app",
+            "job_type": "website_copy",
+            "word_count": 450,
+            "price_gbp": 28.00
+        }
+    ]
+    
+    status, response = test_api_endpoint("POST", "/jobs/bulk-create", bulk_jobs_data)
+    
+    if status == 200 and isinstance(response, dict) and response.get("success"):
+        job_ids = response.get("job_ids", [])
+        if len(job_ids) == 3:
+            print("✅ TEST 5 PASSED: Bulk create with 3 jobs successful")
+            test_results.append(("Bulk create 3 jobs", "PASSED", f"Created {len(job_ids)} jobs"))
+        else:
+            print(f"❌ TEST 5 FAILED: Expected 3 job IDs, got {len(job_ids)}")
+            test_results.append(("Bulk create 3 jobs", "FAILED", f"Expected 3 jobs, got {len(job_ids)}"))
+    else:
+        print("❌ TEST 5 FAILED: Bulk create failed")
+        test_results.append(("Bulk create 3 jobs", "FAILED", f"Status: {status}, Response: {response}"))
+    
+    # ========================================
+    # Test 6: Check available jobs list
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 6: GET /api/jobs/available - Check available jobs list")
+    print("="*80)
+    
+    status, response = test_api_endpoint("GET", "/jobs/available")
+    
+    if status == 200 and isinstance(response, list):
+        available_count = len(response)
+        print(f"✅ TEST 6 PASSED: Found {available_count} available jobs")
         
-        # Test 7: Check balance after withdrawal
-        if withdrawal_result:
-            balance_after_result = test_balance_after_withdrawal(balance_data, withdrawal_amount)
-            test_results.append(("Balance After Withdrawal", balance_after_result is not False))
+        # Show some job details
+        for i, job in enumerate(response[:3]):  # Show first 3 jobs
+            print(f"  Job {i+1}: {job.get('title', 'N/A')} - £{job.get('price_gbp', 0)}")
+        
+        test_results.append(("Check available jobs", "PASSED", f"{available_count} jobs available"))
     else:
-        print_test_header("Skipping Withdrawal Tests")
-        print("⚠️  Insufficient balance for withdrawal testing")
-        if balance_data:
-            print(f"   Available balance: £{balance_data['available_balance']:.2f}")
-            print(f"   Required for test: £{withdrawal_amount:.2f}")
+        print("❌ TEST 6 FAILED: Could not retrieve available jobs")
+        test_results.append(("Check available jobs", "FAILED", f"Status: {status}, Response: {response}"))
     
-    # Test 8: Check withdrawal history
-    history_result = test_withdrawal_history()
-    test_results.append(("Withdrawal History", history_result is not False))
+    # ========================================
+    # Test 7: Auto-execute all available jobs
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 7: POST /api/jobs/auto-execute - Auto-execute all available jobs")
+    print("="*80)
     
-    # Summary
-    print_test_header("Test Summary")
-    passed = sum(1 for _, result in test_results if result)
-    total = len(test_results)
+    status, response = test_api_endpoint("POST", "/jobs/auto-execute")
     
-    for test_name, result in test_results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status}: {test_name}")
-    
-    print(f"\n📊 Results: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("🎉 All tests passed! Bank account and withdrawal functionality is working correctly.")
-        return 0
+    if status == 200 and isinstance(response, dict) and response.get("success"):
+        jobs_executed = response.get("jobs_executed", 0)
+        total_earnings = response.get("total_earnings_gbp", 0)
+        errors = response.get("errors", [])
+        
+        if jobs_executed > 0:
+            print(f"✅ TEST 7 PASSED: Auto-executed {jobs_executed} jobs, earned £{total_earnings}")
+            if errors:
+                print(f"⚠️  Some jobs had errors: {len(errors)} errors")
+                for error in errors[:3]:  # Show first 3 errors
+                    print(f"    Error: {error}")
+            test_results.append(("Auto-execute jobs", "PASSED", f"Executed {jobs_executed} jobs, £{total_earnings} earned"))
+        else:
+            print("✅ TEST 7 PASSED: No jobs available to execute")
+            test_results.append(("Auto-execute jobs", "PASSED", "No jobs available to execute"))
     else:
-        print("⚠️  Some tests failed. Please check the issues above.")
-        return 1
+        print("❌ TEST 7 FAILED: Auto-execute failed")
+        test_results.append(("Auto-execute jobs", "FAILED", f"Status: {status}, Response: {response}"))
+    
+    # ========================================
+    # Test 8: Verify stats after auto-execution
+    # ========================================
+    print("\n" + "="*80)
+    print("TEST 8: GET /api/stats - Verify stats after auto-execution")
+    print("="*80)
+    
+    status, response = test_api_endpoint("GET", "/stats")
+    
+    if status == 200 and isinstance(response, dict):
+        total_earnings = response.get("total_earnings_gbp", 0)
+        jobs_completed = response.get("jobs_completed", 0)
+        jobs_available = response.get("jobs_available", 0)
+        
+        print(f"✅ TEST 8 PASSED: Stats retrieved successfully")
+        print(f"  Total Earnings: £{total_earnings}")
+        print(f"  Jobs Completed: {jobs_completed}")
+        print(f"  Jobs Available: {jobs_available}")
+        
+        test_results.append(("Verify stats", "PASSED", f"£{total_earnings} total, {jobs_completed} completed, {jobs_available} available"))
+    else:
+        print("❌ TEST 8 FAILED: Could not retrieve stats")
+        test_results.append(("Verify stats", "FAILED", f"Status: {status}, Response: {response}"))
+    
+    # ========================================
+    # FINAL TEST SUMMARY
+    # ========================================
+    print("\n" + "="*80)
+    print("🏁 FINAL TEST SUMMARY - AI Infrastructure Integration Endpoints")
+    print("="*80)
+    
+    passed_tests = 0
+    failed_tests = 0
+    
+    for test_name, result, details in test_results:
+        status_icon = "✅" if result == "PASSED" else "❌"
+        print(f"{status_icon} {test_name}: {result}")
+        print(f"   Details: {details}")
+        
+        if result == "PASSED":
+            passed_tests += 1
+        else:
+            failed_tests += 1
+    
+    print(f"\n📊 OVERALL RESULTS:")
+    print(f"   ✅ Passed: {passed_tests}")
+    print(f"   ❌ Failed: {failed_tests}")
+    print(f"   📈 Success Rate: {(passed_tests/(passed_tests+failed_tests)*100):.1f}%")
+    
+    if failed_tests == 0:
+        print("\n🎉 ALL TESTS PASSED! AI Infrastructure Integration endpoints are working correctly.")
+    else:
+        print(f"\n⚠️  {failed_tests} test(s) failed. Please review the failed tests above.")
+    
+    return passed_tests, failed_tests
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

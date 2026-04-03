@@ -177,6 +177,202 @@ async def get_job(job_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# Create new job from external AI infrastructure
+@app.post("/api/jobs/create")
+async def create_job(job: Job):
+    """
+    Endpoint for external AI infrastructure to submit new jobs.
+    Can be called by webhooks, APIs, or automated systems.
+    """
+    try:
+        job_data = {
+            "title": job.title,
+            "description": job.description,
+            "job_type": job.job_type,
+            "word_count": job.word_count,
+            "price_gbp": job.price_gbp,
+            "status": "available",
+            "created_at": datetime.now(timezone.utc),
+            "source": "external_ai_infrastructure"
+        }
+        
+        result = jobs_collection.insert_one(job_data)
+        job_data["_id"] = str(result.inserted_id)
+        
+        return {
+            "success": True,
+            "message": "Job created successfully",
+            "job_id": str(result.inserted_id),
+            "job": serialize_doc(job_data)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating job: {str(e)}")
+
+# Webhook endpoint for receiving jobs from AI infrastructure
+@app.post("/api/jobs/webhook")
+async def receive_job_webhook(request: Request):
+    """
+    Webhook endpoint for AI infrastructure to push new jobs.
+    Accepts JSON payload with job details.
+    """
+    try:
+        payload = await request.json()
+        
+        # Extract job details from payload
+        job_data = {
+            "title": payload.get("title"),
+            "description": payload.get("description"),
+            "job_type": payload.get("job_type", "general"),
+            "word_count": payload.get("word_count", 500),
+            "price_gbp": payload.get("price_gbp", 20.0),
+            "status": "available",
+            "created_at": datetime.now(timezone.utc),
+            "source": "webhook",
+            "external_id": payload.get("external_id"),
+            "metadata": payload.get("metadata", {})
+        }
+        
+        # Validate required fields
+        if not job_data["title"] or not job_data["description"]:
+            raise HTTPException(status_code=400, detail="Title and description are required")
+        
+        result = jobs_collection.insert_one(job_data)
+        
+        return {
+            "success": True,
+            "message": "Job received and queued",
+            "job_id": str(result.inserted_id)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook error: {str(e)}")
+
+# Auto-execute new jobs from AI infrastructure
+@app.post("/api/jobs/auto-execute")
+async def auto_execute_jobs():
+    """
+    Automatically execute all available jobs from external sources.
+    Used by scheduled tasks or manual triggers.
+    """
+    try:
+        # Get all available jobs
+        available_jobs = list(jobs_collection.find({"status": "available"}))
+        
+        if not available_jobs:
+            return {
+                "success": True,
+                "message": "No jobs available to execute",
+                "jobs_executed": 0
+            }
+        
+        executed_count = 0
+        total_earnings = 0.0
+        errors = []
+        
+        for job in available_jobs:
+            try:
+                # Update status to in_progress
+                jobs_collection.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"status": "in_progress"}}
+                )
+                
+                # Generate content using GPT-5.2
+                chat = LlmChat(
+                    api_key=EMERGENT_LLM_KEY,
+                    session_id=f"auto_job_{job['_id']}",
+                    system_message="You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
+                ).with_model("openai", "gpt-5.2")
+                
+                prompt = f"""Create {job['job_type'].replace('_', ' ')} content with the following requirements:
+                
+Title: {job['title']}
+Description: {job['description']}
+Target word count: {job['word_count']} words
+
+Please write professional, engaging content that exactly matches these requirements. Only provide the content, no additional explanations."""
+                
+                user_message = UserMessage(text=prompt)
+                generated_content = await chat.send_message(user_message)
+                
+                # Save completed work
+                completed_work = {
+                    "job_id": str(job["_id"]),
+                    "job_title": job["title"],
+                    "generated_content": generated_content,
+                    "word_count": job["word_count"],
+                    "earnings_gbp": job["price_gbp"],
+                    "completed_at": datetime.now(timezone.utc),
+                    "source": job.get("source", "unknown")
+                }
+                completed_work_collection.insert_one(completed_work)
+                
+                # Update job status
+                jobs_collection.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"status": "completed"}}
+                )
+                
+                executed_count += 1
+                total_earnings += job["price_gbp"]
+                
+            except Exception as job_error:
+                # Revert status if error
+                jobs_collection.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"status": "available"}}
+                )
+                errors.append({
+                    "job_id": str(job["_id"]),
+                    "error": str(job_error)
+                })
+        
+        return {
+            "success": True,
+            "message": f"Auto-execution completed",
+            "jobs_executed": executed_count,
+            "total_earnings_gbp": round(total_earnings, 2),
+            "errors": errors if errors else None
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Auto-execute error: {str(e)}")
+
+# Bulk create jobs (for batch imports from AI infrastructure)
+@app.post("/api/jobs/bulk-create")
+async def bulk_create_jobs(jobs: List[Job]):
+    """
+    Create multiple jobs at once from AI infrastructure.
+    Useful for batch imports or scheduled syncs.
+    """
+    try:
+        created_jobs = []
+        
+        for job in jobs:
+            job_data = {
+                "title": job.title,
+                "description": job.description,
+                "job_type": job.job_type,
+                "word_count": job.word_count,
+                "price_gbp": job.price_gbp,
+                "status": "available",
+                "created_at": datetime.now(timezone.utc),
+                "source": "bulk_import"
+            }
+            
+            result = jobs_collection.insert_one(job_data)
+            created_jobs.append(str(result.inserted_id))
+        
+        return {
+            "success": True,
+            "message": f"{len(created_jobs)} jobs created successfully",
+            "job_ids": created_jobs
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bulk create error: {str(e)}")
+
 # Execute job with AI
 @app.post("/api/jobs/execute/{job_id}")
 async def execute_job(job_id: str):
