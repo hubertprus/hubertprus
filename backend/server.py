@@ -33,8 +33,9 @@ app.add_middleware(
 
 # MongoDB connection
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.getenv("DB_NAME", "ai_money_maker")
 client = MongoClient(MONGO_URL)
-db = client["ai_money_maker"]
+db = client[DB_NAME]
 jobs_collection = db["jobs"]
 completed_work_collection = db["completed_work"]
 payment_transactions_collection = db["payment_transactions"]
