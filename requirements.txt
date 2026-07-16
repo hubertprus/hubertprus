@@ -1,0 +1,2 @@
+-r backend/requirements.txt
+gTTS==2.5.1

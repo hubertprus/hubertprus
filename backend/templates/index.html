@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maszyna Viralowa (Vertex Song) — Luxury Tech</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --obsidian-black: #0B0B0C;
+            --cyber-gold: #FFD700;
+            --cyber-gold-dark: #D4AF37;
+            --cyber-gold-glow: rgba(255, 215, 0, 0.4);
+            --gold-gradient: linear-gradient(135deg, #FFD700 0%, #D4AF37 50%, #B8860B 100%);
+            --grey-card: #141416;
+            --grey-border: #232326;
+            --text-main: #E2E2E6;
+            --text-gold: #FFD700;
+            --glitch-red: #ff0055;
+            --glitch-blue: #00ffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--obsidian-black);
+            color: var(--text-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Background Canvas for Binary Code Rain */
+        #binaryRain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Glitch Header */
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .glitch-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .glitch-title {
+            font-size: 3rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: #fff;
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 10px var(--cyber-gold-glow);
+            position: relative;
+            animation: glitch 3s infinite;
+        }
+
+        .glitch-title::before,
+        .glitch-title::after {
+            content: "MASZYNA VIRALOWA";
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--obsidian-black);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .glitch-title::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--glitch-red);
+            clip: rect(44px, 450px, 56px, 0);
+            animation: glitch-anim 5s infinite linear alternate-reverse;
+        }
+
+        .glitch-title::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--glitch-blue), 0 2px var(--cyber-gold);
+            clip: rect(85px, 450px, 140px, 0);
+            animation: glitch-anim2 5s infinite linear alternate-reverse;
+        }
+
+        .tagline {
+            font-family: 'Fira Code', monospace;
+            color: var(--cyber-gold);
+            font-size: 1rem;
+            margin-top: 10px;
+            letter-spacing: 2px;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 900px) {
+            .grid {
+                grid-template-columns: 2fr 1.2fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--grey-card);
+            border: 1px solid var(--grey-border);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--gold-gradient);
+            opacity: 0.7;
+        }
+
+        .card:hover {
+            border-color: var(--cyber-gold-dark);
+            box-shadow: 0 15px 40px rgba(212, 175, 55, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--grey-border);
+            padding-bottom: 12px;
+        }
+
+        .card h2 span {
+            color: var(--cyber-gold);
+        }
+
+        /* Inputs & Buttons */
+        textarea, input[type="text"] {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--grey-border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: 'Montserrat', sans-serif;
+            padding: 15px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        textarea:focus, input[type="text"]:focus {
+            border-color: var(--cyber-gold);
+            box-shadow: 0 0 10px var(--cyber-gold-glow);
+        }
+
+        .btn {
+            background: var(--gold-gradient);
+            color: var(--obsidian-black);
+            border: none;
+            border-radius: 8px;
+            padding: 14px 28px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: transform 0.2s, filter 0.3s, box-shadow 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 5px 15px var(--cyber-gold-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Copy-Paste Ingestion */
+        .fiverr-brief-box {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        /* Moduł Ręce (Interactive Scenes) */
+        .scene-card {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--grey-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .scene-card:hover {
+            border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .scene-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: var(--cyber-gold);
+        }
+
+        .scene-title {
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .scene-prompt-input {
+            min-height: 80px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .scene-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            width: auto;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--cyber-gold);
+            color: var(--cyber-gold);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 215, 0, 0.05);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
+        }
+
+        .video-status-indicator {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .video-status-indicator.ready {
+            color: #00ff88;
+            font-weight: 700;
+        }
+
+        .video-status-indicator.generating {
+            color: var(--cyber-gold);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Reach Optimizer Output */
+        .optimizer-group {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--grey-border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .optimizer-label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .optimizer-val {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #fff;
+            white-space: pre-wrap;
+        }
+
+        .copy-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .btn-copy {
+            background: transparent;
+            border: 1px solid var(--grey-border);
+            color: var(--cyber-gold);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.3s, background-color 0.3s;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .btn-copy:hover {
+            border-color: var(--cyber-gold);
+            background: rgba(255, 215, 0, 0.05);
+        }
+
+        /* Audio player styling */
+        .audio-brief-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .audio-player-container {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--grey-border);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .play-pause-btn {
+            background: var(--gold-gradient);
+            color: var(--obsidian-black);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.2s, filter 0.3s;
+        }
+
+        .play-pause-btn:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+
+        .progress-bar-wrapper {
+            flex-grow: 1;
+            height: 6px;
+            background-color: #333;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--gold-gradient);
+            border-radius: 3px;
+            width: 0%;
+        }
+
+        .time-display {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: #888;
+            min-width: 85px;
+            text-align: right;
+        }
+
+        /* Realtime Telemetry and logs */
+        .telemetry-log {
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--grey-border);
+            border-radius: 8px;
+            padding: 15px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: #00ff88;
+            line-height: 1.5;
+            margin-top: 20px;
+        }
+
+        .telemetry-line {
+            margin-bottom: 5px;
+        }
+
+        .telemetry-timestamp {
+            color: var(--cyber-gold-dark);
+        }
+
+        /* Animations */
+        @keyframes glitch {
+            0% {
+                text-shadow: 0 0 10px var(--cyber-gold-glow);
+            }
+            50% {
+                text-shadow: 0 0 20px var(--cyber-gold-glow), 2px -2px 0 var(--glitch-red), -2px 2px 0 var(--glitch-blue);
+            }
+            100% {
+                text-shadow: 0 0 10px var(--cyber-gold-glow);
+            }
+        }
+
+        @keyframes glitch-anim {
+            0% {
+                clip: rect(10px, 9999px, 50px, 0);
+            }
+            20% {
+                clip: rect(80px, 9999px, 5px, 0);
+            }
+            40% {
+                clip: rect(45px, 9999px, 85px, 0);
+            }
+            60% {
+                clip: rect(25px, 9999px, 120px, 0);
+            }
+            80% {
+                clip: rect(110px, 9999px, 35px, 0);
+            }
+            100% {
+                clip: rect(60px, 9999px, 95px, 0);
+            }
+        }
+
+        @keyframes glitch-anim2 {
+            0% {
+                clip: rect(70px, 9999px, 105px, 0);
+            }
+            20% {
+                clip: rect(30px, 9999px, 75px, 0);
+            }
+            40% {
+                clip: rect(120px, 9999px, 20px, 0);
+            }
+            60% {
+                clip: rect(90px, 9999px, 140px, 0);
+            }
+            80% {
+                clip: rect(15px, 9999px, 50px, 0);
+            }
+            100% {
+                clip: rect(100px, 9999px, 80px, 0);
+            }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--obsidian-black);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--grey-border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--cyber-gold-dark);
+        }
+
+        /* Loader */
+        .spinner {
+            border: 3px solid rgba(255, 215, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: var(--cyber-gold);
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(11, 11, 12, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            gap: 15px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Binary code rain canvas -->
+    <canvas id="binaryRain"></canvas>
+
+    <div class="container">
+        <!-- Luxury Glitch Header -->
+        <header>
+            <div class="glitch-wrapper">
+                <h1 class="glitch-title" data-text="MASZYNA VIRALOWA">Maszyna Viralowa</h1>
+            </div>
+            <p class="tagline">// VERTEX SONG — LUXURY MARKETING AUTO-ENGINE</p>
+        </header>
+
+        <!-- Main Workspace Dashboard Grid -->
+        <div class="grid">
+            <!-- Left Panel: Copy-Paste Brief & Scene Editor (Moduł Ręce) -->
+            <div class="space-y">
+                <!-- Ingestion Card -->
+                <div class="card" style="margin-bottom: 30px;">
+                    <h2><span>01.</span> Ingest Briefu z Fiverr</h2>
+                    <p style="font-size: 0.9rem; color: #888; margin-bottom: 15px;">
+                        Wklej surowy opis zamówienia od klienta z platformy Fiverr. Model Gemini 1.5 Flash automatycznie wyekstrahuje intencje i wygeneruje scenopis.
+                    </p>
+                    <textarea class="fiverr-brief-box" id="briefInput" placeholder="Wklej tutaj opis zlecenia, np.:
+'Potrzebuję energicznej reklamy na TikToka dla nowej marki bezalkoholowych napojów energetycznych o nazwie NeonPulse. Chcę, żeby motywem przewodnim były neonowe barwy, dynamiczne przejścia, nocny klimat miasta i mocny beat w tle. Scenariusz powinien składać się z 3-4 ujęć.'"></textarea>
+                    <button class="btn" id="btnIngest" onclick="ingestBrief()">
+                        <span>Analizuj Brief & Utwórz Scenariusz</span>
+                    </button>
+                    
+                    <div class="loader-overlay" id="ingestLoader" style="display: none;">
+                        <div class="spinner"></div>
+                        <p style="font-family: 'Fira Code', monospace; color: var(--cyber-gold);">Gemini 1.5 Flash analizuje zamówienie...</p>
+                    </div>
+                </div>
+
+                <!-- Moduł Ręce (Interactive Scene Editor) -->
+                <div class="card" id="handsModuleCard" style="opacity: 0.6; pointer-events: none;">
+                    <h2><span>02.</span> Moduł „Ręce” — Custom Graphics & Video tuning</h2>
+                    <p style="font-size: 0.9rem; color: #888; margin-bottom: 20px;">
+                        Przeglądaj, modyfikuj prompty wygenerowane przez AI i uruchamiaj renderowanie grafik / wideo 3D H.265 w rozdzielczości pionowej.
+                    </p>
+                    
+                    <div id="scenesContainer">
+                        <div style="text-align: center; padding: 40px 0; color: #555; font-family: 'Fira Code', monospace;">
+                            Brak załadowanego briefu. Wklej brief powyżej i kliknij analizę.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Reach Optimizer & Intelligent Audio Briefing -->
+            <div class="space-y">
+                <!-- Reach Optimizer Card -->
+                <div class="card" id="reachOptimizerCard" style="opacity: 0.6; pointer-events: none; margin-bottom: 30px;">
+                    <h2><span>03.</span> Optymalizator Zasięgów</h2>
+                    <p style="font-size: 0.9rem; color: #888; margin-bottom: 20px;">
+                        Chwytliwe tytuły, viralowe opisy i tagi SEO zoptymalizowane pod algorytmy TikToka i YouTube Shorts.
+                    </p>
+
+                    <div id="optimizerContainer">
+                        <div class="optimizer-group">
+                            <div class="optimizer-label">Proponowany Tytuł / Hook</div>
+                            <div class="copy-row">
+                                <div class="optimizer-val" id="optTitle">-</div>
+                                <button class="btn-copy" onclick="copyText('optTitle')">Kopiuj</button>
+                            </div>
+                        </div>
+                        <div class="optimizer-group">
+                            <div class="optimizer-label">Viralowy Opis</div>
+                            <div class="copy-row">
+                                <div class="optimizer-val" id="optDesc">-</div>
+                                <button class="btn-copy" onclick="copyText('optDesc')">Kopiuj</button>
+                            </div>
+                        </div>
+                        <div class="optimizer-group">
+                            <div class="optimizer-label">Tagi SEO & Hashtags</div>
+                            <div class="copy-row">
+                                <div class="optimizer-val" id="optTags">-</div>
+                                <button class="btn-copy" onclick="copyText('optTags')">Kopiuj</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Intelligent Audio Briefing Card -->
+                <div class="card" id="audioBriefCard" style="opacity: 0.6; pointer-events: none; margin-bottom: 30px;">
+                    <h2><span>04.</span> Audio Overview Briefing</h2>
+                    <p style="font-size: 0.9rem; color: #888; margin-bottom: 20px;">
+                        Posłuchaj dynamicznego omówienia niuansów estetycznych i technicznych wygenerowanego pakietu marketingowego.
+                    </p>
+
+                    <div class="audio-brief-section">
+                        <button class="btn btn-secondary" id="btnGenAudio" onclick="generateAudioBrief()">
+                            <span>Generuj Audio Briefing</span>
+                        </button>
+
+                        <div class="audio-player-container">
+                            <button class="play-pause-btn" id="playBtn" onclick="toggleAudio()" disabled>
+                                <span style="font-size: 1.2rem;">▶</span>
+                            </button>
+                            <div class="progress-bar-wrapper" onclick="seekAudio(event)">
+                                <div class="progress-bar-fill" id="progressFill"></div>
+                            </div>
+                            <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                        </div>
+                        <audio id="audioPlayer" style="display: none;" ontimeupdate="updateAudioProgress()" onended="audioEnded()"></audio>
+                    </div>
+                    
+                    <div class="loader-overlay" id="audioLoader" style="display: none;">
+                        <div class="spinner"></div>
+                        <p style="font-family: 'Fira Code', monospace; color: var(--cyber-gold);">Syntetyzowanie lektora...</p>
+                    </div>
+                </div>
+
+                <!-- Real-time Telemetry & State Monitoring -->
+                <div class="card">
+                    <h2><span>05.</span> Telemetria Systemowa (GCP)</h2>
+                    <p style="font-size: 0.85rem; color: #888;">
+                        Logi w czasie rzeczywistym z instancji Google AI Studio, Vertex AI i procesora H.265.
+                    </p>
+                    <div class="telemetry-log" id="telemetryLog">
+                        <div class="telemetry-line"><span class="telemetry-timestamp">[21:21:58]</span> SYSTEM INITIALIZED: Maszyna Viralowa ready.</div>
+                        <div class="telemetry-line"><span class="telemetry-timestamp">[21:21:58]</span> CORE: Standard wejściowy: H.265 HEVC 1080x1920 Vertical.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Binary Rain Script -->
+    <script>
+        const canvas = document.getElementById('binaryRain');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const alphabet = "01010101010101010101010101010101";
+        const fontSize = 14;
+        const columns = canvas.width / fontSize;
+
+        const rainDrops = [];
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+        }
+
+        let speedMultiplier = 1;
+
+        function draw() {
+            ctx.fillStyle = 'rgba(11, 11, 12, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Tech Gold rain color
+            ctx.fillStyle = '#D4AF37';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i] += speedMultiplier;
+            }
+        }
+
+        setInterval(draw, 30);
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Speed up the matrix rain on user actions to simulate processing
+        function boostRain() {
+            speedMultiplier = 3;
+            setTimeout(() => {
+                speedMultiplier = 1;
+            }, 3000);
+        }
+    </script>
+
+    <!-- Main Logic Script -->
+    <script>
+        let currentProjectData = null;
+        const telemetryLog = document.getElementById('telemetryLog');
+
+        function addLog(message) {
+            const time = new Date().toTimeString().split(' ')[0];
+            const line = document.createElement('div');
+            line.className = 'telemetry-line';
+            line.innerHTML = `<span class="telemetry-timestamp">[${time}]</span> ${message}`;
+            telemetryLog.appendChild(line);
+            telemetryLog.scrollTop = telemetryLog.scrollHeight;
+        }
+
+        async function ingestBrief() {
+            const briefText = document.getElementById('briefInput').value.trim();
+            if (!briefText) {
+                alert('Proszę wprowadzić brief z Fiverr.');
+                return;
+            }
+
+            boostRain();
+            addLog("Ingesting raw brief from operator...");
+            document.getElementById('ingestLoader').style.display = 'flex';
+
+            try {
+                const response = await fetch('/api/viral/ingest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brief: briefText })
+                });
+
+                if (!response.ok) {
+                    throw new Error('API Ingest error');
+                }
+
+                const result = await response.json();
+                currentProjectData = result;
+
+                addLog(`Gemini 1.5 Flash complete. Extracted Project Name: "${result.project_name}"`);
+                addLog(`Mood: "${result.mood}" | Style: "${result.style}"`);
+                addLog(`Extracted ${result.scenes.length} scenes.`);
+
+                // Enable cards
+                document.getElementById('handsModuleCard').style.opacity = '1';
+                document.getElementById('handsModuleCard').style.pointerEvents = 'auto';
+                document.getElementById('reachOptimizerCard').style.opacity = '1';
+                document.getElementById('reachOptimizerCard').style.pointerEvents = 'auto';
+                document.getElementById('audioBriefCard').style.opacity = '1';
+                document.getElementById('audioBriefCard').style.pointerEvents = 'auto';
+
+                // Display Scenes
+                renderScenes(result.scenes);
+
+                // Load Optimizer data
+                optimizeReach(result);
+
+            } catch (error) {
+                addLog(`ERROR during ingestion: ${error.message}`);
+                alert('Wystąpił błąd przy komunikacji z serwerem. Upewnij się, że serwer jest uruchomiony i klucz Gemini jest poprawny.');
+            } finally {
+                document.getElementById('ingestLoader').style.display = 'none';
+            }
+        }
+
+        function renderScenes(scenes) {
+            const container = document.getElementById('scenesContainer');
+            container.innerHTML = '';
+
+            scenes.forEach((scene, index) => {
+                const card = document.createElement('div');
+                card.className = 'scene-card';
+                card.id = `sceneCard-${index}`;
+                card.innerHTML = `
+                    <div class="scene-header">
+                        <span class="scene-title">Scena ${scene.scene_number}</span>
+                        <span class="video-status-indicator" id="status-${index}">OCZEKUJE NA RENDER</span>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #bbb; margin-bottom: 12px; line-height: 1.5;">
+                        <strong>Dialog/Narracja:</strong> ${scene.script || "Brak wypowiedzi/Dźwięk tła"}
+                    </div>
+                    <div class="optimizer-label" style="margin-bottom: 5px;">Prompt wizualny dla Vertex AI:</div>
+                    <textarea class="scene-prompt-input" id="prompt-${index}">${scene.visual_prompt}</textarea>
+                    <div class="scene-actions">
+                        <button class="btn btn-small" id="btnRender-${index}" onclick="generateGraphics(${index})">
+                            Generuj Grafikę & Wideo (H.265)
+                        </button>
+                        <a id="download-${index}" href="#" style="display: none; color: var(--cyber-gold); font-family: 'Fira Code', monospace; font-size: 0.8rem; text-decoration: none;" target="_blank">Pobierz MP4 (Vertical H.265)</a>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function generateGraphics(index) {
+            const promptVal = document.getElementById(`prompt-${index}`).value.trim();
+            const statusIndicator = document.getElementById(`status-${index}`);
+            const renderBtn = document.getElementById(`btnRender-${index}`);
+            const downloadLink = document.getElementById(`download-${index}`);
+
+            addLog(`Triggering render for Scene ${index + 1}...`);
+            statusIndicator.className = 'video-status-indicator generating';
+            statusIndicator.textContent = 'RENDEROWANIE...';
+            renderBtn.disabled = true;
+            boostRain();
+
+            try {
+                const response = await fetch('/api/viral/generate-graphics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        scene_index: index,
+                        visual_prompt: promptVal,
+                        project_name: currentProjectData ? currentProjectData.project_name : "ViralProject"
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Graphics generation error');
+                }
+
+                const result = await response.json();
+                
+                statusIndicator.className = 'video-status-indicator ready';
+                statusIndicator.textContent = 'GOTOWE (H.265 1080x1920)';
+                addLog(`Scene ${index + 1} render complete. File saved: ${result.file_name}`);
+                
+                // Show download link
+                downloadLink.href = `/api/viral/download/${result.file_name}`;
+                downloadLink.style.display = 'inline-block';
+
+            } catch (error) {
+                statusIndicator.className = 'video-status-indicator';
+                statusIndicator.textContent = 'BŁĄD RENDERA';
+                addLog(`ERROR rendering Scene ${index + 1}: ${error.message}`);
+                renderBtn.disabled = false;
+            }
+        }
+
+        async function optimizeReach(projectData) {
+            addLog("Triggering reach optimization model...");
+            try {
+                const response = await fetch('/api/viral/optimize-reach', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_name: projectData.project_name,
+                        mood: projectData.mood,
+                        style: projectData.style,
+                        scenes_summary: projectData.scenes.map(s => s.visual_prompt).join("; ")
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Optimize reach error');
+                }
+
+                const result = await response.json();
+                document.getElementById('optTitle').textContent = result.optimized_title;
+                document.getElementById('optDesc').textContent = result.optimized_description;
+                document.getElementById('optTags').textContent = result.optimized_tags;
+                addLog("Reach Optimizer analysis complete and loaded.");
+
+            } catch (error) {
+                addLog(`ERROR optimizing reach: ${error.message}`);
+            }
+        }
+
+        async function generateAudioBrief() {
+            if (!currentProjectData) return;
+
+            addLog("Synthesizing Audio Overview Briefing...");
+            document.getElementById('audioLoader').style.display = 'flex';
+            boostRain();
+
+            try {
+                const response = await fetch('/api/viral/audio-brief', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_name: currentProjectData.project_name,
+                        mood: currentProjectData.mood,
+                        style: currentProjectData.style
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Audio brief synthesis failed');
+                }
+
+                const result = await response.json();
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = result.audio_url;
+                
+                document.getElementById('playBtn').disabled = false;
+                addLog("Audio brief synthesized successfully. Ready for playback.");
+
+                // Auto-play
+                toggleAudio();
+
+            } catch (error) {
+                addLog(`ERROR synthesizing audio brief: ${error.message}`);
+            } finally {
+                document.getElementById('audioLoader').style.display = 'none';
+            }
+        }
+
+        // Web Audio Player Logic
+        const audioPlayer = document.getElementById('audioPlayer');
+        const playBtn = document.getElementById('playBtn');
+        const progressFill = document.getElementById('progressFill');
+        const timeDisplay = document.getElementById('timeDisplay');
+
+        function toggleAudio() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                playBtn.innerHTML = '<span style="font-size: 1.2rem;">⏸</span>';
+                addLog("Playing Audio overview briefing...");
+            } else {
+                audioPlayer.pause();
+                playBtn.innerHTML = '<span style="font-size: 1.2rem;">▶</span>';
+            }
+        }
+
+        function updateAudioProgress() {
+            if (!audioPlayer.duration) return;
+            const percentage = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            progressFill.style.width = `${percentage}%`;
+            
+            const curMin = Math.floor(audioPlayer.currentTime / 60);
+            const curSec = Math.floor(audioPlayer.currentTime % 60).toString().padStart(2, '0');
+            const durMin = Math.floor(audioPlayer.duration / 60);
+            const durSec = Math.floor(audioPlayer.duration % 60).toString().padStart(2, '0');
+            
+            timeDisplay.textContent = `${curMin}:${curSec} / ${durMin}:${durSec}`;
+        }
+
+        function seekAudio(e) {
+            const bar = e.currentTarget;
+            const rect = bar.getBoundingClientRect();
+            const clickPosition = (e.clientX - rect.left) / rect.width;
+            audioPlayer.currentTime = clickPosition * audioPlayer.duration;
+        }
+
+        function audioEnded() {
+            playBtn.innerHTML = '<span style="font-size: 1.2rem;">▶</span>';
+            progressFill.style.width = '0%';
+            addLog("Audio overview briefing completed.");
+        }
+
+        function copyText(elementId) {
+            const val = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(val);
+            addLog(`Copied field "${elementId}" to clipboard.`);
+            alert("Skopiowano do schowka!");
+        }
+    </script>
+</body>
+</html>
