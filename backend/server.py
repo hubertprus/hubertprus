@@ -6,6 +6,7 @@ from typing import Optional, List, Dict
 from datetime import datetime, timezone
 from bson import ObjectId
 import os
+import sys
 from dotenv import load_dotenv
 import json
 
@@ -19,6 +20,22 @@ from emergentintegrations.payments.stripe.checkout import (
     CheckoutStatusResponse, 
     CheckoutSessionRequest
 )
+
+# GCP Integrations setup
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+try:
+    from gcp import (
+        GCSClient,
+        VertexAIClient,
+        GCPTasksClient,
+        GCPPubSubClient,
+        GCPCostMonitor,
+        SpotVMManager,
+    )
+    GCP_INTEGRATIONS_ACTIVE = True
+except Exception as e:
+    GCP_INTEGRATIONS_ACTIVE = False
+    print(f"GCP Integrations status: inactive ({e})")
 
 app = FastAPI()
 
@@ -257,6 +274,15 @@ async def auto_execute_jobs():
     Used by scheduled tasks or manual triggers.
     """
     try:
+        # Cost monitor safety check (Kill switch)
+        if GCP_INTEGRATIONS_ACTIVE:
+            cost_monitor = GCPCostMonitor(db)
+            if cost_monitor.is_kill_switch_active():
+                raise HTTPException(
+                    status_code=503, 
+                    detail="GCP Daily budget limit reached. LLM execution is temporarily suspended to save costs."
+                )
+
         # Get all available jobs
         available_jobs = list(jobs_collection.find({"status": "available"}))
         
@@ -279,13 +305,6 @@ async def auto_execute_jobs():
                     {"$set": {"status": "in_progress"}}
                 )
                 
-                # Generate content using GPT-5.2
-                chat = LlmChat(
-                    api_key=EMERGENT_LLM_KEY,
-                    session_id=f"auto_job_{job['_id']}",
-                    system_message="You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
-                ).with_model("openai", "gpt-5.2")
-                
                 prompt = f"""Create {job['job_type'].replace('_', ' ')} content with the following requirements:
                 
 Title: {job['title']}
@@ -294,8 +313,33 @@ Target word count: {job['word_count']} words
 
 Please write professional, engaging content that exactly matches these requirements. Only provide the content, no additional explanations."""
                 
-                user_message = UserMessage(text=prompt)
-                generated_content = await chat.send_message(user_message)
+                # Check if we should use Vertex AI Gemini (either explicitly requested, or standard API fails/is unavailable)
+                use_vertex = os.getenv("USE_VERTEX_AI", "false").lower() == "true" or not EMERGENT_LLM_KEY
+                
+                generated_content = None
+                if use_vertex and GCP_INTEGRATIONS_ACTIVE:
+                    try:
+                        vertex_client = VertexAIClient()
+                        system_instruction = "You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
+                        generated_content = vertex_client.generate_content(prompt, system_instruction=system_instruction)
+                        
+                        # Track cost (Gemini 2.5 Flash is highly cost-effective)
+                        prompt_tokens = len(prompt.split()) * 1.3
+                        completion_tokens = len(generated_content.split()) * 1.3
+                        cost_monitor.track_llm_cost(prompt_tokens, completion_tokens, "gemini-2.5-flash")
+                    except Exception as vertex_err:
+                        print(f"Vertex AI failed: {vertex_err}. Trying standard flow...")
+
+                if not generated_content:
+                    # Generate content using GPT-5.2
+                    chat = LlmChat(
+                        api_key=EMERGENT_LLM_KEY,
+                        session_id=f"auto_job_{job['_id']}",
+                        system_message="You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
+                    ).with_model("openai", "gpt-5.2")
+                    
+                    user_message = UserMessage(text=prompt)
+                    generated_content = await chat.send_message(user_message)
                 
                 # Save completed work
                 completed_work = {
@@ -378,6 +422,15 @@ async def bulk_create_jobs(jobs: List[Job]):
 @app.post("/api/jobs/execute/{job_id}")
 async def execute_job(job_id: str):
     try:
+        # Cost monitor safety check (Kill switch)
+        if GCP_INTEGRATIONS_ACTIVE:
+            cost_monitor = GCPCostMonitor(db)
+            if cost_monitor.is_kill_switch_active():
+                raise HTTPException(
+                    status_code=503, 
+                    detail="GCP Daily budget limit reached. LLM execution is temporarily suspended to save costs."
+                )
+
         # Get job
         job = jobs_collection.find_one({"_id": ObjectId(job_id)})
         if not job:
@@ -392,13 +445,6 @@ async def execute_job(job_id: str):
             {"$set": {"status": "in_progress"}}
         )
         
-        # Generate content using GPT-5.2
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"job_{job_id}",
-            system_message="You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
-        ).with_model("openai", "gpt-5.2")
-        
         # Create prompt based on job details
         prompt = f"""Create {job['job_type'].replace('_', ' ')} content with the following requirements:
         
@@ -408,8 +454,33 @@ Target word count: {job['word_count']} words
 
 Please write professional, engaging content that exactly matches these requirements. Only provide the content, no additional explanations."""
         
-        user_message = UserMessage(text=prompt)
-        generated_content = await chat.send_message(user_message)
+        # Check if we should use Vertex AI Gemini (either explicitly requested, or standard API fails/is unavailable)
+        use_vertex = os.getenv("USE_VERTEX_AI", "false").lower() == "true" or not EMERGENT_LLM_KEY
+        
+        generated_content = None
+        if use_vertex and GCP_INTEGRATIONS_ACTIVE:
+            try:
+                vertex_client = VertexAIClient()
+                system_instruction = "You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
+                generated_content = vertex_client.generate_content(prompt, system_instruction=system_instruction)
+                
+                # Track cost (Gemini 2.5 Flash is highly cost-effective)
+                prompt_tokens = len(prompt.split()) * 1.3
+                completion_tokens = len(generated_content.split()) * 1.3
+                cost_monitor.track_llm_cost(prompt_tokens, completion_tokens, "gemini-2.5-flash")
+            except Exception as vertex_err:
+                print(f"Vertex AI failed: {vertex_err}. Trying standard flow...")
+
+        if not generated_content:
+            # Generate content using GPT-5.2
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"job_{job_id}",
+                system_message="You are a professional marketing copywriter. Create high-quality, engaging content that meets the client's requirements exactly."
+            ).with_model("openai", "gpt-5.2")
+            
+            user_message = UserMessage(text=prompt)
+            generated_content = await chat.send_message(user_message)
         
         # Save completed work
         completed_work = {
@@ -854,6 +925,114 @@ async def gemini_status():
         "configured": bool(key),
         "model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
         "message": "Klucz API skonfigurowany" if key else "Brak GOOGLE_AI_API_KEY w .env",
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Vertex Quant Core – GCP Cost Monitoring & Automation Endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/gcp/status")
+async def gcp_status():
+    """Zwraca stan integracji z Google Cloud Platform."""
+    if not GCP_INTEGRATIONS_ACTIVE:
+        return {
+            "active": False,
+            "message": "Integracje GCP są nieaktywne (brak pakietów SDK google-cloud)",
+            "use_vertex_ai": os.getenv("USE_VERTEX_AI", "false").lower() == "true"
+        }
+
+    cost_monitor = GCPCostMonitor(db)
+    spot_manager = SpotVMManager()
+    state = cost_monitor._read_state()
+
+    return {
+        "active": True,
+        "use_vertex_ai": os.getenv("USE_VERTEX_AI", "false").lower() == "true",
+        "kill_switch_active": cost_monitor.is_kill_switch_active(),
+        "daily_spend_gbp": round(state.get("daily_spend_gbp", 0.0), 4),
+        "total_spend_gbp": round(state.get("total_spend_gbp", 0.0), 4),
+        "spot_vm_status": spot_manager.get_status(),
+        "gcs_bucket": os.getenv("GCS_BUCKET_NAME", "unconfigured")
+    }
+
+
+@app.post("/api/gcp/billing-webhook")
+async def gcp_billing_webhook(request: Request):
+    """
+    Webhook odbierający powiadomienia z Google Billing Budgets przez Pub/Sub.
+    Automatycznie aktywuje Kill Switch po przekroczeniu budżetu.
+    """
+    if not GCP_INTEGRATIONS_ACTIVE:
+        raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
+
+    try:
+        envelope = await request.json()
+        if not envelope or "message" not in envelope:
+            raise HTTPException(status_code=400, detail="Invalid Pub/Sub message envelope")
+
+        pubsub_message = envelope["message"]
+        
+        # Odszyfrowanie danych z base64 (standardowy format Pub/Sub)
+        import base64
+        if isinstance(pubsub_message, dict) and "data" in pubsub_message:
+            decoded_bytes = base64.b64decode(pubsub_message["data"])
+            data_str = decoded_bytes.decode("utf-8")
+            data_json = json.loads(data_str)
+            
+            cost_monitor = GCPCostMonitor(db)
+            cost_monitor.handle_pubsub_billing_alert(data_json)
+            
+            # W przypadku przekroczenia budżetu, natychmiast wyłączamy też maszynę Spot VM
+            if cost_monitor.is_kill_switch_active():
+                spot_manager = SpotVMManager()
+                spot_manager.stop_worker()
+                
+            return {"success": True, "message": "Billing alert processed"}
+            
+        raise HTTPException(status_code=400, detail="Missing data field in Pub/Sub envelope")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook parsing error: {str(e)}")
+
+
+@app.post("/api/gcp/reset-budget")
+async def gcp_reset_budget():
+    """Resetuje dzienny licznik kosztów i wyłącza Kill Switch."""
+    if not GCP_INTEGRATIONS_ACTIVE:
+        raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
+    
+    cost_monitor = GCPCostMonitor(db)
+    cost_monitor.reset_daily_budget()
+    return {"success": True, "message": "Daily budget counters reset. Kill Switch deactivated."}
+
+
+@app.post("/api/gcp/spot/start")
+async def gcp_spot_start():
+    """Ręczne lub zautomatyzowane 'wybudzenie' maszyny Spot VM."""
+    if not GCP_INTEGRATIONS_ACTIVE:
+        raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
+        
+    spot_manager = SpotVMManager()
+    success = spot_manager.start_worker()
+    return {
+        "success": success, 
+        "message": "Start command sent" if success else "Failed to send start command",
+        "current_status": spot_manager.get_status()
+    }
+
+
+@app.post("/api/gcp/spot/stop")
+async def gcp_spot_stop():
+    """Wygaszenie maszyny Spot VM w celu redukcji kosztów."""
+    if not GCP_INTEGRATIONS_ACTIVE:
+        raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
+        
+    spot_manager = SpotVMManager()
+    success = spot_manager.stop_worker()
+    return {
+        "success": success, 
+        "message": "Stop command sent" if success else "Failed to send stop command",
+        "current_status": spot_manager.get_status()
     }
 
 

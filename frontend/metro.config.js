@@ -1,4 +1,5 @@
 // metro.config.js
+process.env.STORAGE_DIR = __dirname;
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require('path');
 const { FileStore } = require('metro-cache');
