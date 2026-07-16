@@ -782,6 +782,81 @@ async def get_balance():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching balance: {str(e)}")
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Vertex Quant Core – Gemini AI Studio endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+from gemini_client import chat_with_gemini, generate_music_sequence, analyze_audio_params
+
+class GeminiChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict]] = None
+
+class MusicSequenceRequest(BaseModel):
+    genre: str = "techno"
+    bpm: int = 128
+    steps: int = 16
+    scale: str = "minor"
+    key: str = "A"
+
+class AudioAnalysisRequest(BaseModel):
+    description: str
+
+
+@app.post("/api/gemini/chat")
+async def gemini_chat(req: GeminiChatRequest):
+    """Chat z agentem Vertex Quant Core (Gemini AI Studio)."""
+    try:
+        reply = chat_with_gemini(req.message, req.history)
+        return {"success": True, "reply": reply}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
+
+@app.post("/api/gemini/music-sequence")
+async def gemini_music_sequence(req: MusicSequenceRequest):
+    """Generuje sekwencję muzyczną (kick/snare/bass/lead) przez Gemini."""
+    try:
+        sequence = generate_music_sequence(
+            genre=req.genre,
+            bpm=req.bpm,
+            steps=req.steps,
+            scale=req.scale,
+            key=req.key,
+        )
+        return {"success": True, "sequence": sequence}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
+
+@app.post("/api/gemini/analyze-audio")
+async def gemini_analyze_audio(req: AudioAnalysisRequest):
+    """Analizuje opis brzmienia i zwraca parametry syntezatora."""
+    try:
+        params = analyze_audio_params(req.description)
+        return {"success": True, "synth_params": params}
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
+
+@app.get("/api/gemini/status")
+async def gemini_status():
+    """Sprawdza czy klucz Gemini jest skonfigurowany."""
+    import os
+    key = os.getenv("GOOGLE_AI_API_KEY")
+    return {
+        "configured": bool(key),
+        "model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        "message": "Klucz API skonfigurowany" if key else "Brak GOOGLE_AI_API_KEY w .env",
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
