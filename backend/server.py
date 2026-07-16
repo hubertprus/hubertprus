@@ -876,7 +876,7 @@ class AudioAnalysisRequest(BaseModel):
 
 @app.post("/api/gemini/chat")
 async def gemini_chat(req: GeminiChatRequest):
-    """Chat z agentem Vertex Quant Core (Gemini AI Studio)."""
+    """Chat with the Vertex Quant Core agent (Gemini AI Studio)."""
     try:
         reply = chat_with_gemini(req.message, req.history)
         return {"success": True, "reply": reply}
@@ -888,7 +888,7 @@ async def gemini_chat(req: GeminiChatRequest):
 
 @app.post("/api/gemini/music-sequence")
 async def gemini_music_sequence(req: MusicSequenceRequest):
-    """Generuje sekwencję muzyczną (kick/snare/bass/lead) przez Gemini."""
+    """Generates a musical sequence (kick/snare/bass/lead) via Gemini."""
     try:
         sequence = generate_music_sequence(
             genre=req.genre,
@@ -906,7 +906,7 @@ async def gemini_music_sequence(req: MusicSequenceRequest):
 
 @app.post("/api/gemini/analyze-audio")
 async def gemini_analyze_audio(req: AudioAnalysisRequest):
-    """Analizuje opis brzmienia i zwraca parametry syntezatora."""
+    """Analyzes a sound description and returns synthesizer parameters."""
     try:
         params = analyze_audio_params(req.description)
         return {"success": True, "synth_params": params}
@@ -918,13 +918,13 @@ async def gemini_analyze_audio(req: AudioAnalysisRequest):
 
 @app.get("/api/gemini/status")
 async def gemini_status():
-    """Sprawdza czy klucz Gemini jest skonfigurowany."""
+    """Checks if the Gemini key is configured."""
     import os
     key = os.getenv("GOOGLE_AI_API_KEY")
     return {
         "configured": bool(key),
         "model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-        "message": "Klucz API skonfigurowany" if key else "Brak GOOGLE_AI_API_KEY w .env",
+        "message": "API Key configured" if key else "Missing GOOGLE_AI_API_KEY in .env",
     }
 
 
@@ -934,11 +934,11 @@ async def gemini_status():
 
 @app.get("/api/gcp/status")
 async def gcp_status():
-    """Zwraca stan integracji z Google Cloud Platform."""
+    """Returns the status of integration with Google Cloud Platform."""
     if not GCP_INTEGRATIONS_ACTIVE:
         return {
             "active": False,
-            "message": "Integracje GCP są nieaktywne (brak pakietów SDK google-cloud)",
+            "message": "GCP integrations are inactive (missing google-cloud SDK packages)",
             "use_vertex_ai": os.getenv("USE_VERTEX_AI", "false").lower() == "true"
         }
 
@@ -960,8 +960,8 @@ async def gcp_status():
 @app.post("/api/gcp/billing-webhook")
 async def gcp_billing_webhook(request: Request):
     """
-    Webhook odbierający powiadomienia z Google Billing Budgets przez Pub/Sub.
-    Automatycznie aktywuje Kill Switch po przekroczeniu budżetu.
+    Webhook receiving notifications from Google Billing Budgets via Pub/Sub.
+    Automatically activates Kill Switch after exceeding budget.
     """
     if not GCP_INTEGRATIONS_ACTIVE:
         raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
@@ -973,7 +973,7 @@ async def gcp_billing_webhook(request: Request):
 
         pubsub_message = envelope["message"]
         
-        # Odszyfrowanie danych z base64 (standardowy format Pub/Sub)
+        # Decode data from base64 (standard Pub/Sub format)
         import base64
         if isinstance(pubsub_message, dict) and "data" in pubsub_message:
             decoded_bytes = base64.b64decode(pubsub_message["data"])
@@ -983,7 +983,7 @@ async def gcp_billing_webhook(request: Request):
             cost_monitor = GCPCostMonitor(db)
             cost_monitor.handle_pubsub_billing_alert(data_json)
             
-            # W przypadku przekroczenia budżetu, natychmiast wyłączamy też maszynę Spot VM
+            # In case budget is exceeded, immediately stop the Spot VM worker
             if cost_monitor.is_kill_switch_active():
                 spot_manager = SpotVMManager()
                 spot_manager.stop_worker()
@@ -997,7 +997,7 @@ async def gcp_billing_webhook(request: Request):
 
 @app.post("/api/gcp/reset-budget")
 async def gcp_reset_budget():
-    """Resetuje dzienny licznik kosztów i wyłącza Kill Switch."""
+    """Resets daily cost counter and deactivates Kill Switch."""
     if not GCP_INTEGRATIONS_ACTIVE:
         raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
     
@@ -1008,7 +1008,7 @@ async def gcp_reset_budget():
 
 @app.post("/api/gcp/spot/start")
 async def gcp_spot_start():
-    """Ręczne lub zautomatyzowane 'wybudzenie' maszyny Spot VM."""
+    """Manual or automated 'wake-up' of Spot VM machine."""
     if not GCP_INTEGRATIONS_ACTIVE:
         raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
         
@@ -1023,7 +1023,7 @@ async def gcp_spot_start():
 
 @app.post("/api/gcp/spot/stop")
 async def gcp_spot_stop():
-    """Wygaszenie maszyny Spot VM w celu redukcji kosztów."""
+    """Shutdown of Spot VM machine to reduce costs."""
     if not GCP_INTEGRATIONS_ACTIVE:
         raise HTTPException(status_code=501, detail="GCP integration packages not installed.")
         

@@ -1,7 +1,7 @@
 """
 Vertex Quant Core - Cost & Billing Protection Monitor
 Handles automatic and secure cloud resource shutdown when expenditures
-exceed pre-defined safety limits, protecting darmowe GCP credits.
+exceed pre-defined safety limits, protecting free GCP credits.
 """
 
 import os
